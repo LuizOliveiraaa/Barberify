@@ -1,0 +1,193 @@
+-- Domínio J — Financeiro e caixa da barbearia (9 tabelas).
+
+CREATE TABLE `formas_pagamento` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `empresa_id` BIGINT UNSIGNED NOT NULL,
+  `nome` VARCHAR(60) NOT NULL,
+  `tipo` VARCHAR(16) NOT NULL,
+  `taxa_percentual` DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+  `afeta_caixa` TINYINT(1) NOT NULL DEFAULT 1,
+  `ativo` TINYINT(1) NOT NULL DEFAULT 1,
+  `ordem` SMALLINT NOT NULL DEFAULT 0,
+  `criado_em` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_formas_pagamento_nome` (`empresa_id`, `nome`),
+  CONSTRAINT `fk_formas_pagamento_empresa` FOREIGN KEY (`empresa_id`) REFERENCES `empresas` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `caixas` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `empresa_id` BIGINT UNSIGNED NOT NULL,
+  `unidade_id` BIGINT UNSIGNED NOT NULL,
+  `aberto_por` BIGINT UNSIGNED NULL,
+  `aberto_em` DATETIME NOT NULL,
+  `valor_abertura` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `fechado_por` BIGINT UNSIGNED NULL,
+  `fechado_em` DATETIME NULL,
+  `valor_sistema` DECIMAL(12,2) NULL,
+  `valor_informado` DECIMAL(12,2) NULL,
+  `diferenca` DECIMAL(12,2) NULL,
+  `observacao` VARCHAR(255) NULL,
+  `status` VARCHAR(12) NOT NULL DEFAULT 'aberto',
+  `criado_em` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `atualizado_em` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_caixas_unidade_status` (`empresa_id`, `unidade_id`, `status`),
+  CONSTRAINT `fk_caixas_empresa` FOREIGN KEY (`empresa_id`) REFERENCES `empresas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_caixas_unidade` FOREIGN KEY (`unidade_id`) REFERENCES `unidades` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_caixas_aberto_por` FOREIGN KEY (`aberto_por`) REFERENCES `usuarios_empresa` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_caixas_fechado_por` FOREIGN KEY (`fechado_por`) REFERENCES `usuarios_empresa` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `caixa_movimentos` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `empresa_id` BIGINT UNSIGNED NOT NULL,
+  `caixa_id` BIGINT UNSIGNED NOT NULL,
+  `tipo` VARCHAR(16) NOT NULL,
+  `forma_pagamento_id` BIGINT UNSIGNED NULL,
+  `valor` DECIMAL(12,2) NOT NULL,
+  `descricao` VARCHAR(180) NOT NULL,
+  `comanda_id` BIGINT UNSIGNED NULL,
+  `lancamento_id` BIGINT UNSIGNED NULL,
+  `estorno_de_id` BIGINT UNSIGNED NULL,
+  `criado_por` BIGINT UNSIGNED NULL,
+  `criado_em` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_caixa_movimento_estorno` (`estorno_de_id`),
+  KEY `idx_caixa_movimentos_caixa` (`caixa_id`, `criado_em`),
+  KEY `idx_caixa_movimentos_empresa` (`empresa_id`, `criado_em`),
+  CONSTRAINT `fk_caixa_mov_empresa` FOREIGN KEY (`empresa_id`) REFERENCES `empresas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_caixa_mov_caixa` FOREIGN KEY (`caixa_id`) REFERENCES `caixas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_caixa_mov_forma` FOREIGN KEY (`forma_pagamento_id`) REFERENCES `formas_pagamento` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_caixa_mov_comanda` FOREIGN KEY (`comanda_id`) REFERENCES `comandas` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_caixa_mov_usuario` FOREIGN KEY (`criado_por`) REFERENCES `usuarios_empresa` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_caixa_mov_estorno` FOREIGN KEY (`estorno_de_id`) REFERENCES `caixa_movimentos` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `financeiro_categorias` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `empresa_id` BIGINT UNSIGNED NOT NULL,
+  `nome` VARCHAR(80) NOT NULL,
+  `tipo` VARCHAR(12) NOT NULL,
+  `ativo` TINYINT(1) NOT NULL DEFAULT 1,
+  `criado_em` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_financeiro_categoria` (`empresa_id`, `nome`, `tipo`),
+  CONSTRAINT `fk_financeiro_categoria_empresa` FOREIGN KEY (`empresa_id`) REFERENCES `empresas` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `financeiro_lancamentos` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `empresa_id` BIGINT UNSIGNED NOT NULL,
+  `unidade_id` BIGINT UNSIGNED NULL,
+  `tipo` VARCHAR(12) NOT NULL,
+  `categoria_id` BIGINT UNSIGNED NULL,
+  `descricao` VARCHAR(180) NOT NULL,
+  `valor` DECIMAL(12,2) NOT NULL,
+  `competencia` CHAR(7) NOT NULL,
+  `vencimento` DATE NULL,
+  `pago_em` DATE NULL,
+  `status` VARCHAR(16) NOT NULL DEFAULT 'aberto',
+  `origem` VARCHAR(24) NOT NULL DEFAULT 'manual',
+  `origem_id` BIGINT UNSIGNED NULL,
+  `caixa_id` BIGINT UNSIGNED NULL,
+  `forma_pagamento_id` BIGINT UNSIGNED NULL,
+  `chave_idempotencia` VARCHAR(80) NULL,
+  `estorno_de_id` BIGINT UNSIGNED NULL,
+  `observacao` VARCHAR(255) NULL,
+  `criado_por` BIGINT UNSIGNED NULL,
+  `criado_em` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `atualizado_em` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_financeiro_idempotencia` (`chave_idempotencia`),
+  UNIQUE KEY `uq_financeiro_estorno` (`estorno_de_id`),
+  KEY `idx_financeiro_competencia` (`empresa_id`, `competencia`),
+  KEY `idx_financeiro_status` (`empresa_id`, `status`, `vencimento`),
+  KEY `idx_financeiro_pago` (`empresa_id`, `tipo`, `pago_em`),
+  CONSTRAINT `fk_financeiro_empresa` FOREIGN KEY (`empresa_id`) REFERENCES `empresas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_financeiro_unidade` FOREIGN KEY (`unidade_id`) REFERENCES `unidades` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_financeiro_categoria` FOREIGN KEY (`categoria_id`) REFERENCES `financeiro_categorias` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_financeiro_caixa` FOREIGN KEY (`caixa_id`) REFERENCES `caixas` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_financeiro_forma` FOREIGN KEY (`forma_pagamento_id`) REFERENCES `formas_pagamento` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_financeiro_usuario` FOREIGN KEY (`criado_por`) REFERENCES `usuarios_empresa` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_financeiro_estorno` FOREIGN KEY (`estorno_de_id`) REFERENCES `financeiro_lancamentos` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `comissao_fechamentos` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `empresa_id` BIGINT UNSIGNED NOT NULL,
+  `profissional_id` BIGINT UNSIGNED NOT NULL,
+  `periodo_inicio` DATE NOT NULL,
+  `periodo_fim` DATE NOT NULL,
+  `total` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `status` VARCHAR(12) NOT NULL DEFAULT 'aberto',
+  `fechado_em` DATETIME NULL,
+  `pago_em` DATETIME NULL,
+  `lancamento_id` BIGINT UNSIGNED NULL,
+  `criado_por` BIGINT UNSIGNED NULL,
+  `criado_em` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_comissao_fechamento` (`empresa_id`, `profissional_id`, `periodo_inicio`),
+  CONSTRAINT `fk_com_fech_empresa` FOREIGN KEY (`empresa_id`) REFERENCES `empresas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_com_fech_profissional` FOREIGN KEY (`profissional_id`) REFERENCES `profissionais` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_com_fech_lancamento` FOREIGN KEY (`lancamento_id`) REFERENCES `financeiro_lancamentos` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `comissoes` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `empresa_id` BIGINT UNSIGNED NOT NULL,
+  `profissional_id` BIGINT UNSIGNED NOT NULL,
+  `competencia` CHAR(7) NOT NULL,
+  `comanda_item_id` BIGINT UNSIGNED NULL,
+  `agendamento_id` BIGINT UNSIGNED NULL,
+  `base_calculo` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `tipo` VARCHAR(12) NOT NULL DEFAULT 'percentual',
+  `percentual` DECIMAL(5,2) NULL,
+  `valor` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `status` VARCHAR(16) NOT NULL DEFAULT 'pendente',
+  `fechamento_id` BIGINT UNSIGNED NULL,
+  `estorno_de_id` BIGINT UNSIGNED NULL,
+  `observacao` VARCHAR(255) NULL,
+  `criado_em` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `atualizado_em` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_comissoes_item` (`comanda_item_id`),
+  UNIQUE KEY `uq_comissoes_estorno` (`estorno_de_id`),
+  KEY `idx_comissoes_profissional` (`empresa_id`, `profissional_id`, `competencia`),
+  KEY `idx_comissoes_status` (`empresa_id`, `status`),
+  CONSTRAINT `fk_comissoes_empresa` FOREIGN KEY (`empresa_id`) REFERENCES `empresas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_comissoes_profissional` FOREIGN KEY (`profissional_id`) REFERENCES `profissionais` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_comissoes_item` FOREIGN KEY (`comanda_item_id`) REFERENCES `comanda_itens` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_comissoes_fechamento` FOREIGN KEY (`fechamento_id`) REFERENCES `comissao_fechamentos` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_comissoes_estorno` FOREIGN KEY (`estorno_de_id`) REFERENCES `comissoes` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `metas` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `empresa_id` BIGINT UNSIGNED NOT NULL,
+  `unidade_id` BIGINT UNSIGNED NULL,
+  `competencia` CHAR(7) NOT NULL,
+  `meta_faturamento` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `meta_atendimentos` INT UNSIGNED NOT NULL DEFAULT 0,
+  `meta_ticket_medio` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `criado_em` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_metas_competencia` (`empresa_id`, `unidade_id`, `competencia`),
+  CONSTRAINT `fk_metas_empresa` FOREIGN KEY (`empresa_id`) REFERENCES `empresas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_metas_unidade` FOREIGN KEY (`unidade_id`) REFERENCES `unidades` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `relatorios_salvos` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `empresa_id` BIGINT UNSIGNED NOT NULL,
+  `usuario_id` BIGINT UNSIGNED NULL,
+  `nome` VARCHAR(120) NOT NULL,
+  `tipo` VARCHAR(60) NOT NULL,
+  `filtros` JSON NULL,
+  `publico` TINYINT(1) NOT NULL DEFAULT 0,
+  `criado_em` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_relatorios_salvos_empresa` (`empresa_id`, `tipo`),
+  CONSTRAINT `fk_relatorios_empresa` FOREIGN KEY (`empresa_id`) REFERENCES `empresas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_relatorios_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios_empresa` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

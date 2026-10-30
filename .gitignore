@@ -1,0 +1,19 @@
+# Segredos e ambiente — nunca versionados
+.env
+.env.local
+.env.*.local
+
+# Runtime gerado (logs, cache, tokens de instalação, arquivos privados)
+/storage/*
+!/storage/.gitkeep
+
+# Dependências e artefatos locais
+/vendor/
+node_modules/
+
+# Sistema e editores
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
